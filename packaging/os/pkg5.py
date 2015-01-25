@@ -38,6 +38,15 @@ options:
     required: false
     default: present
     choices: [ present, latest, absent ]
+  recursive:
+    description:
+      - Also operate on all installed Solaris branded non-global zones.
+      - Available from Solaris 11.2 onwards.
+      - Caution: this module will assume that the non-global zones start
+        off with the same packages installed as the global zone.
+    required: false
+    default: false
+    choices: [ true, false ]
 '''
 EXAMPLES = '''
 # Install Vim:
@@ -63,6 +72,7 @@ def main():
                     'removed',
                 ]
             ),
+            recursive=dict(choices=BOOLEANS, default=False),
         )
     )
 
@@ -82,14 +92,14 @@ def main():
             packages.append(fragment)
 
     if params['state'] in ['present', 'installed']:
-        ensure(module, 'present', packages)
+        ensure(module, 'present', packages, params)
     elif params['state'] in ['latest']:
-        ensure(module, 'latest', packages)
+        ensure(module, 'latest', packages, params)
     elif params['state'] in ['absent', 'uninstalled', 'removed']:
-        ensure(module, 'absent', packages)
+        ensure(module, 'absent', packages, params)
 
 
-def ensure(module, state, packages):
+def ensure(module, state, packages, params):
     response = {
         'results': [],
         'msg': '',
@@ -112,7 +122,11 @@ def ensure(module, state, packages):
     to_modify = filter(behaviour[state]['filter'], packages)
     if to_modify:
         rc, out, err = module.run_command(
-            ['pkg', behaviour[state]['subcommand'], '-q', '--'] + to_modify
+            [
+                'pkg', behaviour[state]['subcommand']
+            ] + (['-r'] if params['recursive'] else []) + [
+                '-q', '--'
+            ] + to_modify
         )
         response['rc'] = rc
         response['results'].append(out)
